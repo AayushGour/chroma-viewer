@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChromaDB Viewer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>ChromaDB Database Viewer</h1>
+            <div class="header-controls">
+                <button id="config-btn" class="config-btn" title="Database Configuration">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <div class="status">
+                    <span id="connection-status" class="status-offline">Connecting...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h2>Collections</h2>
+                    <button class="btn-icon" onclick="viewer.refreshAllCollections()" title="Refresh Collections">
+                        <i class="fas fa-refresh"></i>
+                    </button>
+                </div>
+                <div class="collections-list" id="collections-list">
+                    <div class="loading">Loading collections...</div>
+                </div>
+                <button class="btn btn-primary" onclick="createCollection()">
+                    <i class="fas fa-plus"></i> New Collection
+                </button>
+            </aside>
+
+            <!-- Content Area -->
+            <main class="content">
+                <!-- Default View -->
+                <div id="default-view" class="view active">
+                    <div class="welcome">
+                        <h2>Welcome to ChromaDB Viewer</h2>
+                        <p>Select a collection from the sidebar to view its documents.</p>
+                    </div>
+                </div>
+
+                <!-- Collection View -->
+                <div id="collection-view" class="view">
+                    <div class="collection-header">
+                        <h2 id="collection-name">Collection Name</h2>
+                        <div class="collection-actions">
+                            <button class="btn btn-secondary" onclick="refreshCollection()">
+                                <i class="fas fa-refresh"></i> Refresh
+                            </button>
+                            <button class="btn btn-success" onclick="addDocument()">
+                                <i class="fas fa-plus"></i> Add Document
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Documents Table -->
+                    <div class="table-section">
+                        <div class="table-controls">
+                            <div class="search-box">
+                                <input type="text" id="search-input" placeholder="Search documents..." />
+                            </div>
+                            <div class="page-size">
+                                <label>Show:</label>
+                                <select id="page-size">
+                                    <option value="10">10</option>
+                                    <option value="25" selected>25</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Document</th>
+                                        <th>Metadata</th>
+                                        <th>Embeddings</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="table-body">
+                                    <tr>
+                                        <td colspan="5" class="no-data">No data loaded yet</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="pagination" id="pagination">
+                            <div class="pagination-info">
+                                <span id="pagination-text">Showing 0 of 0 documents</span>
+                            </div>
+                            <div class="pagination-controls">
+                                <button id="first-btn" class="pagination-btn" disabled title="First Page">
+                                    <i class="fas fa-angle-double-left"></i>
+                                </button>
+                                <button id="prev-btn" class="pagination-btn" disabled title="Previous Page">
+                                    <i class="fas fa-angle-left"></i>
+                                </button>
+                                <div class="page-numbers" id="page-numbers">
+                                    <!-- Page numbers will be populated here -->
+                                </div>
+                                <button id="next-btn" class="pagination-btn" disabled title="Next Page">
+                                    <i class="fas fa-angle-right"></i>
+                                </button>
+                                <button id="last-btn" class="pagination-btn" disabled title="Last Page">
+                                    <i class="fas fa-angle-double-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading" class="loading-overlay">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+    </div>
+
+    <!-- Configuration Modal -->
+    <div id="config-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Database Configuration</h3>
+                <button class="modal-close" id="config-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="config-form">
+                    <div class="form-group">
+                        <label for="db-host">Host:</label>
+                        <input type="text" id="db-host" placeholder="localhost" value="localhost">
+                    </div>
+                    <div class="form-group">
+                        <label for="db-port">Port:</label>
+                        <input type="number" id="db-port" placeholder="5001" value="5001" min="1" max="65535">
+                    </div>
+                    <div class="form-group">
+                        <label for="db-protocol">Protocol:</label>
+                        <select id="db-protocol">
+                            <option value="http">HTTP</option>
+                            <option value="https">HTTPS</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="db-path">API Path:</label>
+                        <input type="text" id="db-path" placeholder="/api/v1" value="/api/v1">
+                    </div>
+                    <div class="form-group">
+                        <label for="connection-timeout">Connection Timeout (ms):</label>
+                        <input type="number" id="connection-timeout" placeholder="5000" value="5000" min="1000"
+                            max="30000">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="test-connection" class="btn btn-secondary">
+                            <i class="fas fa-plug"></i> Test Connection
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save & Connect
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
