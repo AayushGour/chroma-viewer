@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chroma Database Explorer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-database"></i> Chroma Database Explorer</h1>
+                <div class="header-controls">
+                    <button class="config-btn" id="configBtn" title="Configure Connection">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                    <div class="connection-status" id="connectionStatus">
+                        <i class="fas fa-circle"></i>
+                        <span>Connecting...</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Connection Configuration Modal -->
+        <div class="config-modal" id="configModal" style="display: none;">
+            <div class="config-content">
+                <div class="config-header">
+                    <h2><i class="fas fa-plug"></i> Connection Configuration</h2>
+                    <button class="close-btn" id="closeConfigBtn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="config-body">
+                    <div class="config-form">
+                        <div class="form-group">
+                            <label for="hostInput">
+                                <i class="fas fa-server"></i>
+                                Host/IP Address
+                            </label>
+                            <input type="text" id="hostInput" placeholder="localhost" value="localhost">
+                            <small>Enter the hostname or IP address of your Chroma server</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="portInput">
+                                <i class="fas fa-plug"></i>
+                                Port
+                            </label>
+                            <input type="number" id="portInput" placeholder="8003" value="8003" min="1" max="65535">
+                            <small>Port number where Chroma is running (default: 8000)</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="protocolSelect">
+                                <i class="fas fa-shield-alt"></i>
+                                Protocol
+                            </label>
+                            <select id="protocolSelect">
+                                <option value="http">HTTP</option>
+                                <option value="https">HTTPS</option>
+                            </select>
+                            <small>Choose HTTP for local development or HTTPS for secure connections</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="basePath">
+                                <i class="fas fa-route"></i>
+                                Base Path (Optional)
+                            </label>
+                            <input type="text" id="basePath" placeholder="/api/v1" value="">
+                            <small>Additional path prefix if Chroma is behind a proxy (leave empty for default)</small>
+                        </div>
+
+                        <div class="connection-preview">
+                            <label>
+                                <i class="fas fa-link"></i>
+                                Connection URL Preview
+                            </label>
+                            <div class="url-preview" id="urlPreview">http://localhost:8003</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="config-footer">
+                    <button class="btn btn-secondary" id="resetConfigBtn">
+                        <i class="fas fa-undo"></i>
+                        Reset to Default
+                    </button>
+                    <div class="btn-group">
+                        <button class="btn btn-secondary" id="testConnectionBtn">
+                            <i class="fas fa-wifi"></i>
+                            Test Connection
+                        </button>
+                        <button class="btn btn-primary" id="saveConfigBtn">
+                            <i class="fas fa-save"></i>
+                            Save & Connect
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Collections Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h2><i class="fas fa-folder"></i> Collections</h2>
+                    <button class="refresh-btn" id="refreshBtn" title="Refresh Collections">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <div class="collections-container">
+                    <div class="loading" id="collectionsLoading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Loading collections...</span>
+                    </div>
+                    <div class="collections-list" id="collectionsList"></div>
+                    <div class="no-collections" id="noCollections" style="display: none;">
+                        <i class="fas fa-folder-open"></i>
+                        <p>No collections found</p>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Content Area -->
+            <section class="content-area">
+                <!-- Collection Info -->
+                <div class="collection-info" id="collectionInfo" style="display: none;">
+                    <div class="collection-header">
+                        <h2 id="collectionName"></h2>
+                        <div class="collection-stats">
+                            <span class="stat">
+                                <i class="fas fa-list"></i>
+                                <span id="documentCount">0</span> documents
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Table -->
+                <div class="data-container">
+                    <div class="welcome-message" id="welcomeMessage">
+                        <i class="fas fa-arrow-left"></i>
+                        <h3>Welcome to Chroma Database Explorer</h3>
+                        <p>Select a collection from the sidebar to view its contents</p>
+                    </div>
+
+                    <div class="data-loading" id="dataLoading" style="display: none;">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Loading data...</span>
+                    </div>
+
+                    <div class="data-table-container" id="dataTableContainer" style="display: none;">
+                        <div class="table-controls">
+                            <div class="search-box">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="searchInput" placeholder="Search documents...">
+                            </div>
+                            <div class="view-options">
+                                <button class="view-btn active" data-view="table" title="Table View">
+                                    <i class="fas fa-table"></i>
+                                </button>
+                                <button class="view-btn" data-view="json" title="JSON View">
+                                    <i class="fas fa-code"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="data-table" id="dataTable"></div>
+                        <div class="data-json" id="dataJson" style="display: none;"></div>
+                    </div>
+
+                    <div class="no-data" id="noData" style="display: none;">
+                        <i class="fas fa-inbox"></i>
+                        <h3>No data found</h3>
+                        <p>This collection appears to be empty</p>
+                    </div>
+
+                    <div class="error-message" id="errorMessage" style="display: none;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Error</h3>
+                        <p id="errorText"></p>
+                        <button class="retry-btn" id="retryBtn">
+                            <i class="fas fa-redo"></i>
+                            Retry
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
