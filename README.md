@@ -76,8 +76,8 @@ A modern, responsive Single Page Application (SPA) for exploring and visualizing
    # For a specific remote server
    python3 proxy-server.py --target-host 192.168.1.100 --target-port 8000 --proxy-port 5001
    
-   # Example for the server in your setup
-   python3 proxy-server.py --target-host 98.70.241.152 --target-port 8000 --proxy-port 5001
+   # Example for a remote server
+   python3 proxy-server.py --target-host 203.0.113.10 --target-port 8000 --proxy-port 5001
    ```
 
 2. **Configure the web application:**
@@ -232,14 +232,4 @@ This project is open source and available under the [MIT License](LICENSE).
 - Configurable connections
 - Multiple view modes
 
-## 🙏 Acknowledgments
-
-- **Chroma Team** for creating an excellent vector database
-- **Contributors** who helped test and improve this tool
-- **Community** for feedback and feature suggestions
-
 ---
-
-**Made with ❤️ for the Chroma community**
-
-For more information about Chroma, visit [trychroma.com](https://trychroma.com)

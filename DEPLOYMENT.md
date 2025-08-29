@@ -129,7 +129,7 @@ python3 serve.py
 ### Staging
 ```bash
 # Remote Chroma + CORS proxy
-python3 proxy-server.py --target-host staging-chroma.example.com --target-port 8000 --proxy-port 5001
+python3 proxy-server.py --target-host 203.0.113.20 --target-port 8000 --proxy-port 5001
 # Deploy web app to staging environment
 ```
 
@@ -144,7 +144,7 @@ python3 proxy-server.py --target-host staging-chroma.example.com --target-port 8
 
 ### Environment Variables
 ```bash
-export CHROMA_HOST=production-chroma.example.com
+export CHROMA_HOST=203.0.113.30
 export CHROMA_PORT=443
 export CHROMA_PROTOCOL=https
 ```
@@ -211,7 +211,7 @@ Monitor:
 ### Debug Tools
 ```bash
 # Test Chroma connectivity
-curl https://your-chroma-server.com/api/v1/heartbeat
+curl https://203.0.113.40:8000/api/v1/heartbeat
 
 # Check proxy status
 curl http://localhost:5001/api/v1/heartbeat

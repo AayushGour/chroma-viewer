@@ -762,6 +762,38 @@ class ChromaExplorer {
         this.paginationControls.style.display = 'none';
     }
 
+    clearCollectionData() {
+        // Clear collections list
+        this.collections = [];
+        this.collectionsList.innerHTML = '';
+        this.collectionsList.style.display = 'none';
+        this.noCollections.style.display = 'none';
+
+        // Clear collection-related data
+        this.currentCollection = null;
+        this.currentCollectionId = null;
+        this.currentData = [];
+        this.filteredData = [];
+        this.currentPage = 1;
+        this.totalPages = 1;
+        this.totalCollectionItems = null;
+        this.collectionMetadata = null;
+
+        // Clear search input
+        this.searchInput.value = '';
+
+        // Reset view to table
+        this.currentView = 'table';
+        this.viewBtns.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.view === 'table');
+        });
+
+        // Remove active collection selection (in case any remain)
+        document.querySelectorAll('.collection-item').forEach(item => {
+            item.classList.remove('active');
+        });
+    }
+
     showCollectionsLoading(show) {
         this.collectionsLoading.style.display = show ? 'flex' : 'none';
         this.collectionsList.style.display = show ? 'none' : 'block';
@@ -1054,10 +1086,25 @@ class ChromaExplorer {
         // Close modal
         this.closeConfigModal();
 
+        // Clear existing data and reset UI
+        console.log('Clearing collection data and resetting UI...');
+        this.clearCollectionData();
+        this.hideAllContentStates();
+        this.welcomeMessage.style.display = 'flex';
+
+        // Show collections loading while reconnecting
+        this.showCollectionsLoading(true);
+
         // Reconnect with new settings
         this.updateConnectionStatus('connecting');
-        await this.testConnection();
-        await this.loadCollections();
+        try {
+            await this.testConnection();
+            await this.loadCollections();
+        } catch (error) {
+            console.error('Failed to connect with new settings:', error);
+            this.updateConnectionStatus('disconnected');
+            this.showCollectionsLoading(false);
+        }
     }
 }
 
