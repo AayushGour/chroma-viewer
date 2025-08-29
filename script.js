@@ -362,7 +362,6 @@ class ChromaExplorer {
 
         this.updateServerSidePagination(data.ids.length);
         this.renderData();
-        this.dataTableContainer.style.display = 'block';
         this.paginationControls.style.display = 'flex';
     }
 
@@ -771,6 +770,10 @@ class ChromaExplorer {
 
     showDataLoading(show) {
         this.dataLoading.style.display = show ? 'flex' : 'none';
+        // If showing the loader, make sure the container is visible
+        if (show) {
+            this.dataTableContainer.style.display = 'flex';
+        }
     }
 
     showNoData() {

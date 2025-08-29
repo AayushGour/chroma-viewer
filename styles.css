@@ -776,7 +776,6 @@ small {
 .data-table {
     padding: var(--space-6);
     position: relative;
-    max-height: calc(100vh - 420px);
 }
 
 .table {
