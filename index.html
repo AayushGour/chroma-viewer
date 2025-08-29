@@ -5,8 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chroma Database Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 
 <body>
@@ -130,19 +134,6 @@
 
             <!-- Content Area -->
             <section class="content-area">
-                <!-- Collection Info -->
-                <div class="collection-info" id="collectionInfo" style="display: none;">
-                    <div class="collection-header">
-                        <h2 id="collectionName"></h2>
-                        <div class="collection-stats">
-                            <span class="stat">
-                                <i class="fas fa-list"></i>
-                                <span id="documentCount">0</span> documents
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Data Table -->
                 <div class="data-container">
                     <div class="welcome-message" id="welcomeMessage">
@@ -151,28 +142,74 @@
                         <p>Select a collection from the sidebar to view its contents</p>
                     </div>
 
-                    <div class="data-loading" id="dataLoading" style="display: none;">
-                        <i class="fas fa-spinner fa-spin"></i>
-                        <span>Loading data...</span>
-                    </div>
-
                     <div class="data-table-container" id="dataTableContainer" style="display: none;">
-                        <div class="table-controls">
-                            <div class="search-box">
-                                <i class="fas fa-search"></i>
-                                <input type="text" id="searchInput" placeholder="Search documents...">
+                        <!-- Loading Overlay -->
+                        <div class="loading-overlay" id="dataLoading" style="display: none;">
+                            <div class="loading-content">
+                                <div class="spinner-container">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                </div>
+                                <span>Loading data...</span>
                             </div>
-                            <div class="view-options">
-                                <button class="view-btn active" data-view="table" title="Table View">
-                                    <i class="fas fa-table"></i>
-                                </button>
-                                <button class="view-btn" data-view="json" title="JSON View">
-                                    <i class="fas fa-code"></i>
-                                </button>
+                        </div>
+                        <div class="unified-header">
+                            <div class="collection-info-inline" id="collectionInfoInline">
+                                <h2 id="collectionName"></h2>
+                                <div class="collection-stats">
+                                    <span class="stat">
+                                        <i class="fas fa-list"></i>
+                                        <span id="documentCount">0</span> documents
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="table-controls">
+                                <div class="search-box">
+                                    <i class="fas fa-search"></i>
+                                    <input type="text" id="searchInput" placeholder="Search documents...">
+                                </div>
+                                <div class="view-options">
+                                    <button class="view-btn active" data-view="table" title="Table View">
+                                        <i class="fas fa-table"></i>
+                                    </button>
+                                    <button class="view-btn" data-view="json" title="JSON View">
+                                        <i class="fas fa-code"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <div class="data-table" id="dataTable"></div>
                         <div class="data-json" id="dataJson" style="display: none;"></div>
+                        <div class="pagination-controls" id="paginationControls" style="display: none;">
+                            <div class="pagination-info">
+                                <span id="pageInfo">Page 1 of 1</span>
+                                <span class="separator">•</span>
+                                <span id="itemsInfo">Showing 1-50 of 100 items</span>
+                            </div>
+                            <div class="pagination-buttons">
+                                <button class="pagination-btn" id="firstPageBtn" title="First Page">
+                                    <i class="fas fa-angle-double-left"></i>
+                                </button>
+                                <button class="pagination-btn" id="prevPageBtn" title="Previous Page">
+                                    <i class="fas fa-angle-left"></i>
+                                </button>
+                                <div class="page-numbers" id="pageNumbers"></div>
+                                <button class="pagination-btn" id="nextPageBtn" title="Next Page">
+                                    <i class="fas fa-angle-right"></i>
+                                </button>
+                                <button class="pagination-btn" id="lastPageBtn" title="Last Page">
+                                    <i class="fas fa-angle-double-right"></i>
+                                </button>
+                            </div>
+                            <div class="items-per-page">
+                                <label for="itemsPerPage">Items per page:</label>
+                                <select id="itemsPerPage">
+                                    <option value="25">25</option>
+                                    <option value="50" selected>50</option>
+                                    <option value="100">100</option>
+                                    <option value="200">200</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="no-data" id="noData" style="display: none;">

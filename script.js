@@ -36,6 +36,13 @@ class ChromaExplorer {
         this.filteredData = [];
         this.currentView = 'table';
 
+        // Pagination state
+        this.currentPage = 1;
+        this.itemsPerPage = 50;
+        this.totalPages = 1;
+        this.totalCollectionItems = null;
+        this.collectionMetadata = null;
+
         this.initializeElements();
         this.attachEventListeners();
         this.initializeConfigForm();
@@ -53,7 +60,7 @@ class ChromaExplorer {
         this.refreshBtn = document.getElementById('refreshBtn');
 
         // Content elements
-        this.collectionInfo = document.getElementById('collectionInfo');
+        this.collectionInfoInline = document.getElementById('collectionInfoInline');
         this.collectionName = document.getElementById('collectionName');
         this.documentCount = document.getElementById('documentCount');
         this.welcomeMessage = document.getElementById('welcomeMessage');
@@ -69,6 +76,17 @@ class ChromaExplorer {
         // Control elements
         this.searchInput = document.getElementById('searchInput');
         this.viewBtns = document.querySelectorAll('.view-btn');
+
+        // Pagination elements
+        this.paginationControls = document.getElementById('paginationControls');
+        this.pageInfo = document.getElementById('pageInfo');
+        this.itemsInfo = document.getElementById('itemsInfo');
+        this.firstPageBtn = document.getElementById('firstPageBtn');
+        this.prevPageBtn = document.getElementById('prevPageBtn');
+        this.nextPageBtn = document.getElementById('nextPageBtn');
+        this.lastPageBtn = document.getElementById('lastPageBtn');
+        this.pageNumbers = document.getElementById('pageNumbers');
+        this.itemsPerPageSelect = document.getElementById('itemsPerPage');
 
         // Configuration elements
         this.configBtn = document.getElementById('configBtn');
@@ -92,6 +110,13 @@ class ChromaExplorer {
         this.viewBtns.forEach(btn => {
             btn.addEventListener('click', () => this.switchView(btn.dataset.view));
         });
+
+        // Pagination event listeners
+        this.firstPageBtn.addEventListener('click', () => this.goToPage(1));
+        this.prevPageBtn.addEventListener('click', () => this.goToPage(this.currentPage - 1));
+        this.nextPageBtn.addEventListener('click', () => this.goToPage(this.currentPage + 1));
+        this.lastPageBtn.addEventListener('click', () => this.goToPage(this.totalPages));
+        this.itemsPerPageSelect.addEventListener('change', (e) => this.changeItemsPerPage(parseInt(e.target.value)));
 
         // Configuration modal events
         this.configBtn.addEventListener('click', () => this.openConfigModal());
@@ -227,27 +252,55 @@ class ChromaExplorer {
         }
     }
 
-    async loadCollectionData(collectionName, collectionId) {
+    async loadCollectionData(collectionName, collectionId, isInitialLoad = true) {
         try {
             if (!collectionId) {
                 throw new Error('Collection ID is required but not provided');
             }
 
-            // Get collection info using collection ID
-            const collectionResponse = await fetch(`${this.baseUrl}/api/v1/collections/${collectionId}/get`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({})
-            });
-            if (!collectionResponse.ok) {
-                throw new Error(`Failed to get collection info: ${collectionResponse.status}`);
-            }
-            const collectionInfo = await collectionResponse.json();
+            if (isInitialLoad) {
+                // Get the exact count using the count endpoint
+                const countResponse = await fetch(`${this.baseUrl}/api/v1/collections/${collectionId}/count`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
 
-            // Get collection data with metadata using collection ID
-            const dataResponse = await this.tryMultipleApiFormats(collectionName, collectionId);
+                if (countResponse.ok) {
+                    const countResult = await countResponse.json();
+                    this.totalCollectionItems = countResult || 0;
+                } else {
+                    console.warn('Count endpoint failed, will estimate from data');
+                    this.totalCollectionItems = null;
+                }
+            }
+
+            // Calculate pagination parameters for current page
+            const offset = (this.currentPage - 1) * this.itemsPerPage;
+            const limit = this.itemsPerPage;
+
+            // Get collection info using collection ID (only on initial load)
+            let collectionInfo;
+            if (isInitialLoad) {
+                const collectionResponse = await fetch(`${this.baseUrl}/api/v1/collections/${collectionId}/get`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+                if (!collectionResponse.ok) {
+                    throw new Error(`Failed to get collection info: ${collectionResponse.status}`);
+                }
+                collectionInfo = await collectionResponse.json();
+                this.collectionMetadata = collectionInfo; // Store for later use
+            } else {
+                collectionInfo = this.collectionMetadata;
+            }
+
+            // Get paginated collection data using collection ID
+            const dataResponse = await this.tryMultipleApiFormats(collectionName, collectionId, limit, offset);
 
             if (!dataResponse.ok) {
                 let errorMessage = `HTTP ${dataResponse.status} - ${dataResponse.statusText}`;
@@ -261,7 +314,7 @@ class ChromaExplorer {
             }
 
             const data = await dataResponse.json();
-            this.processCollectionData(collectionInfo, data);
+            this.processCollectionData(collectionInfo, data, isInitialLoad);
 
         } catch (error) {
             console.error('Error loading collection data:', error);
@@ -269,24 +322,48 @@ class ChromaExplorer {
         }
     }
 
-    processCollectionData(collectionInfo, data) {
+    processCollectionData(collectionInfo, data, isInitialLoad = true) {
         this.showDataLoading(false);
 
-        // Update collection info
-        this.collectionName.textContent = collectionInfo.name;
-        this.documentCount.textContent = data.ids ? data.ids.length : 0;
-        this.collectionInfo.style.display = 'block';
+        if (isInitialLoad) {
+            // Update collection info with the exact count from count endpoint
+            this.collectionName.textContent = collectionInfo.name;
 
-        if (!data.ids || data.ids.length === 0) {
-            this.showNoData();
-            return;
+            // Use the exact count we got from the count endpoint
+            if (this.totalCollectionItems !== null) {
+                this.documentCount.textContent = this.totalCollectionItems.toLocaleString();
+            } else {
+                // Fallback to estimating from first page if count endpoint failed
+                this.totalCollectionItems = data.ids ? data.ids.length : 0;
+                this.documentCount.textContent = this.totalCollectionItems + '+';
+            }
         }
 
-        // Process data into table format
+        if (!data.ids || data.ids.length === 0) {
+            if (isInitialLoad) {
+                this.showNoData();
+                return;
+            } else {
+                // No more data on this page, might have reached the end
+                this.currentData = [];
+                this.filteredData = [];
+                this.renderData();
+                return;
+            }
+        }
+
+        // Process data into table format - now this is the current page data
         this.currentData = this.formatDataForDisplay(data);
-        this.filteredData = [...this.currentData];
+        this.filteredData = [...this.currentData]; // For server-side, current page is filtered data
+
+        if (isInitialLoad) {
+            this.currentPage = 1; // Reset to first page only on initial load
+        }
+
+        this.updateServerSidePagination(data.ids.length);
         this.renderData();
         this.dataTableContainer.style.display = 'block';
+        this.paginationControls.style.display = 'flex';
     }
 
     formatDataForDisplay(data) {
@@ -307,18 +384,21 @@ class ChromaExplorer {
     }
 
     renderData() {
+        // Get paginated data
+        const paginatedData = this.getPaginatedData();
+
         if (this.currentView === 'table') {
-            this.renderTableView();
+            this.renderTableView(paginatedData);
             this.dataTable.style.display = 'block';
             this.dataJson.style.display = 'none';
         } else {
-            this.renderJsonView();
+            this.renderJsonView(paginatedData);
             this.dataTable.style.display = 'none';
             this.dataJson.style.display = 'block';
         }
     }
 
-    renderTableView() {
+    renderTableView(paginatedData) {
         if (this.filteredData.length === 0) {
             this.dataTable.innerHTML = '<p style="text-align: center; padding: 2rem; color: var(--text-light);">No data matches your search criteria.</p>';
             return;
@@ -344,7 +424,7 @@ class ChromaExplorer {
         // Create body
         const tbody = document.createElement('tbody');
 
-        this.filteredData.forEach(row => {
+        paginatedData.forEach(row => {
             const tr = document.createElement('tr');
 
             // ID cell
@@ -380,8 +460,22 @@ class ChromaExplorer {
             const embContent = document.createElement('div');
             embContent.className = 'cell-content';
             if (row.embedding) {
-                embContent.textContent = `[${row.embedding.length} dimensions]`;
-                embContent.title = `First 5 values: ${row.embedding.slice(0, 5).join(', ')}...`;
+                const embeddingDiv = document.createElement('div');
+                embeddingDiv.className = 'embedding-cell';
+
+                // Add dimension info header
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'embedding-header';
+                headerDiv.textContent = `Vector (${row.embedding.length} dimensions)`;
+                embeddingDiv.appendChild(headerDiv);
+
+                // Add the embedding array
+                const arrayDiv = document.createElement('div');
+                arrayDiv.className = 'embedding-array';
+                arrayDiv.textContent = JSON.stringify(row.embedding, null, 2);
+                embeddingDiv.appendChild(arrayDiv);
+
+                embContent.appendChild(embeddingDiv);
             } else {
                 embContent.textContent = 'N/A';
             }
@@ -396,19 +490,69 @@ class ChromaExplorer {
         this.dataTable.appendChild(table);
     }
 
-    renderJsonView() {
+    renderJsonView(paginatedData) {
         const jsonContainer = document.createElement('div');
         jsonContainer.className = 'json-container';
-        jsonContainer.textContent = JSON.stringify(this.filteredData, null, 2);
 
-        this.dataJson.innerHTML = '';
-        this.dataJson.appendChild(jsonContainer);
+        // Create a simplified version without large embedding arrays for initial display
+        const simplifiedData = paginatedData.map(item => {
+            const simplified = { ...item };
+            if (simplified.embedding && simplified.embedding.length > 10) {
+                simplified.embedding = {
+                    dimensions: simplified.embedding.length,
+                    preview: simplified.embedding.slice(0, 5),
+                    note: `... ${simplified.embedding.length - 5} more values`
+                };
+            }
+            return simplified;
+        });
+
+        try {
+            // Show loading state
+            this.dataJson.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i><span>Rendering JSON...</span></div>';
+
+            // Use requestAnimationFrame to prevent UI blocking
+            requestAnimationFrame(() => {
+                try {
+                    // Format JSON with custom replacer to handle long lines
+                    const jsonString = JSON.stringify(simplifiedData, null, 2);
+                    jsonContainer.textContent = jsonString;
+
+                    // Add info about pagination and truncation
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = 'json-info';
+                    const startItem = (this.currentPage - 1) * this.itemsPerPage + 1;
+                    const endItem = Math.min(this.currentPage * this.itemsPerPage, this.filteredData.length);
+                    infoDiv.innerHTML = `
+                        <p><strong>Page ${this.currentPage} of ${this.totalPages}</strong> - Showing items ${startItem}-${endItem} of ${this.filteredData.length}</p>
+                        <p>Embeddings are truncated to first 5 values for performance.</p>
+                    `;
+                    this.dataJson.innerHTML = '';
+                    this.dataJson.appendChild(infoDiv);
+                    this.dataJson.appendChild(jsonContainer);
+                } catch (innerError) {
+                    console.error('Error rendering JSON:', innerError);
+                    jsonContainer.textContent = 'Error: Unable to render JSON view due to data size or complexity.';
+                    this.dataJson.innerHTML = '';
+                    this.dataJson.appendChild(jsonContainer);
+                }
+            });
+        } catch (error) {
+            console.error('Error preparing JSON:', error);
+            jsonContainer.textContent = 'Error: Unable to render JSON view due to data size or complexity.';
+            this.dataJson.innerHTML = '';
+            this.dataJson.appendChild(jsonContainer);
+        }
     }
 
     filterData(searchTerm) {
         if (!searchTerm.trim()) {
-            this.filteredData = [...this.currentData];
+            // Clear search - reload from server
+            this.searchInput.value = '';
+            this.goToPage(1);
         } else {
+            // For now, implement client-side search on current page only
+            // TODO: Implement server-side search with ChromaDB where/where_document
             const term = searchTerm.toLowerCase();
             this.filteredData = this.currentData.filter(row => {
                 return (
@@ -417,8 +561,16 @@ class ChromaExplorer {
                     (row.metadata && JSON.stringify(row.metadata).toLowerCase().includes(term))
                 );
             });
+
+            // For search, use client-side pagination
+            this.updatePagination();
+            this.renderData();
+
+            // Show a note that search is limited to current page
+            if (this.filteredData.length < this.currentData.length) {
+                console.info('Search is limited to current page. Server-side search coming soon.');
+            }
         }
-        this.renderData();
     }
 
     switchView(view) {
@@ -435,6 +587,172 @@ class ChromaExplorer {
         }
     }
 
+    // Pagination Methods
+    getPaginatedData() {
+        // For server-side pagination, we already have the paginated data
+        return this.filteredData;
+    }
+
+    updateServerSidePagination(currentPageItemCount) {
+        // If we have the exact count from the count endpoint, calculate exact pages
+        if (this.totalCollectionItems !== null) {
+            this.totalPages = Math.ceil(this.totalCollectionItems / this.itemsPerPage);
+        } else {
+            // Fallback: Estimate total pages based on current page
+            if (currentPageItemCount === this.itemsPerPage) {
+                // We got a full page, so there might be more
+                this.totalPages = this.currentPage + 1; // At least one more page
+            } else {
+                // We got less than a full page, so this is likely the last page
+                this.totalPages = this.currentPage;
+            }
+
+            // Update the total collection items estimate
+            const estimatedTotal = (this.currentPage - 1) * this.itemsPerPage + currentPageItemCount;
+            if (currentPageItemCount < this.itemsPerPage) {
+                // This is the last page, so we know the exact total
+                this.totalCollectionItems = estimatedTotal;
+                this.documentCount.textContent = this.totalCollectionItems.toLocaleString();
+            }
+        }
+
+        this.updatePaginationUI();
+    }
+
+    updatePagination() {
+        // For client-side pagination (search results)
+        this.totalPages = Math.ceil(this.filteredData.length / this.itemsPerPage);
+        this.updatePaginationUI();
+    }
+
+    updatePaginationUI() {
+        // Update page info
+        const pageInfo = this.totalCollectionItems !== null
+            ? `Page ${this.currentPage} of ${this.totalPages}`
+            : `Page ${this.currentPage} of ${this.totalPages}+`;
+        this.pageInfo.textContent = pageInfo;
+
+        // Update items info
+        const startItem = this.filteredData.length > 0 ? (this.currentPage - 1) * this.itemsPerPage + 1 : 0;
+        const endItem = startItem + this.filteredData.length - 1;
+
+        let itemsInfo;
+        if (this.totalCollectionItems !== null) {
+            itemsInfo = `Showing ${startItem.toLocaleString()}-${endItem.toLocaleString()} of ${this.totalCollectionItems.toLocaleString()} items`;
+        } else {
+            const estimatedTotal = this.totalCollectionItems || this.filteredData.length;
+            itemsInfo = `Showing ${startItem.toLocaleString()}-${endItem.toLocaleString()} of ${estimatedTotal.toLocaleString()}+ items`;
+        }
+        this.itemsInfo.textContent = itemsInfo;
+
+        // Update button states
+        this.firstPageBtn.disabled = this.currentPage === 1;
+        this.prevPageBtn.disabled = this.currentPage === 1;
+
+        // For next/last buttons, be more careful if we have exact count
+        if (this.totalCollectionItems !== null) {
+            this.nextPageBtn.disabled = this.currentPage >= this.totalPages;
+            this.lastPageBtn.disabled = this.currentPage >= this.totalPages;
+        } else {
+            // If we don't have exact count, disable only if current page has no data
+            this.nextPageBtn.disabled = this.filteredData.length === 0;
+            this.lastPageBtn.disabled = this.filteredData.length === 0;
+        }
+
+        // Update page numbers
+        this.renderPageNumbers();
+    }
+
+    renderPageNumbers() {
+        this.pageNumbers.innerHTML = '';
+
+        const maxPageButtons = 5;
+        const halfRange = Math.floor(maxPageButtons / 2);
+
+        let startPage = Math.max(1, this.currentPage - halfRange);
+        let endPage = Math.min(this.totalPages, startPage + maxPageButtons - 1);
+
+        // Adjust start if we're near the end
+        if (endPage - startPage < maxPageButtons - 1) {
+            startPage = Math.max(1, endPage - maxPageButtons + 1);
+        }
+
+        // Add first page and ellipsis if needed
+        if (startPage > 1) {
+            this.createPageButton(1);
+            if (startPage > 2) {
+                this.createEllipsis();
+            }
+        }
+
+        // Add page numbers
+        for (let i = startPage; i <= endPage; i++) {
+            this.createPageButton(i);
+        }
+
+        // Add last page and ellipsis if needed
+        if (endPage < this.totalPages) {
+            if (endPage < this.totalPages - 1) {
+                this.createEllipsis();
+            }
+            this.createPageButton(this.totalPages);
+        }
+    }
+
+    createPageButton(pageNumber) {
+        const button = document.createElement('button');
+        button.className = 'page-number';
+        button.textContent = pageNumber;
+        button.addEventListener('click', () => this.goToPage(pageNumber));
+
+        if (pageNumber === this.currentPage) {
+            button.classList.add('active');
+        }
+
+        this.pageNumbers.appendChild(button);
+    }
+
+    createEllipsis() {
+        const ellipsis = document.createElement('span');
+        ellipsis.className = 'page-ellipsis';
+        ellipsis.textContent = '...';
+        this.pageNumbers.appendChild(ellipsis);
+    }
+
+    async goToPage(pageNumber) {
+        if (pageNumber >= 1 && pageNumber !== this.currentPage) {
+            // Don't go beyond known total pages (if we have exact count)
+            if (this.totalCollectionItems !== null && pageNumber > this.totalPages) {
+                return; // Don't go beyond the last page
+            }
+
+            this.currentPage = pageNumber;
+            this.showDataLoading(true);
+
+            try {
+                // Load data for the new page from server
+                await this.loadCollectionData(this.currentCollection, this.currentCollectionId, false);
+            } catch (error) {
+                console.error('Error loading page data:', error);
+                this.showError('Failed to load page data', error.message);
+            }
+        }
+    }
+
+    async changeItemsPerPage(newItemsPerPage) {
+        this.itemsPerPage = newItemsPerPage;
+        this.currentPage = 1; // Reset to first page
+        this.showDataLoading(true);
+
+        try {
+            // Reload data with new page size
+            await this.loadCollectionData(this.currentCollection, this.currentCollectionId, false);
+        } catch (error) {
+            console.error('Error changing page size:', error);
+            this.showError('Failed to change page size', error.message);
+        }
+    }
+
     // UI State Management
     hideAllContentStates() {
         this.welcomeMessage.style.display = 'none';
@@ -442,7 +760,7 @@ class ChromaExplorer {
         this.dataTableContainer.style.display = 'none';
         this.noData.style.display = 'none';
         this.errorMessage.style.display = 'none';
-        this.collectionInfo.style.display = 'none';
+        this.paginationControls.style.display = 'none';
     }
 
     showCollectionsLoading(show) {
@@ -465,48 +783,54 @@ class ChromaExplorer {
         this.errorMessage.style.display = 'flex';
     }
 
-    async tryMultipleApiFormats(collectionName, collectionId) {
+    async tryMultipleApiFormats(collectionName, collectionId, limit = null, offset = null) {
+        // Calculate pagination parameters
+        const paginationParams = {};
+        if (limit !== null) paginationParams.limit = limit;
+        if (offset !== null) paginationParams.offset = offset;
+
         // Based on the OpenAPI specification from /docs
         const apiFormats = [
-            // Format 1: Correct API format based on OpenAPI spec
+            // Format 1: Correct API format based on OpenAPI spec with pagination
             {
                 method: 'POST',
                 body: {
                     include: ["documents", "metadatas", "embeddings"],
-                    limit: 1000
+                    ...paginationParams
                 }
             },
-            // Format 2: Default include values from schema
+            // Format 2: Default include values from schema with pagination
             {
                 method: 'POST',
                 body: {
                     include: ["metadatas", "documents"],
-                    limit: 1000
+                    ...paginationParams
                 }
             },
-            // Format 3: All available include options
+            // Format 3: All available include options with pagination
             {
                 method: 'POST',
                 body: {
                     include: ["documents", "embeddings", "metadatas", "distances", "uris", "data"],
-                    limit: 100
+                    ...paginationParams
                 }
             },
-            // Format 4: Without limit (rely on defaults)
+            // Format 4: Without explicit include, only pagination
             {
                 method: 'POST',
                 body: {
-                    include: ["documents", "metadatas", "embeddings"]
+                    include: ["documents", "metadatas", "embeddings"],
+                    ...paginationParams
                 }
             },
-            // Format 5: Minimal request with default include
+            // Format 5: Minimal request with pagination
             {
                 method: 'POST',
                 body: {
-                    limit: 1000
+                    ...paginationParams
                 }
             },
-            // Format 6: Empty body (should use all defaults)
+            // Format 6: Empty body (fallback)
             {
                 method: 'POST',
                 body: {}
