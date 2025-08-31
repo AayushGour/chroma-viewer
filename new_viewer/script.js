@@ -19,8 +19,12 @@ class ChromaDBViewer {
             host: 'localhost',
             port: 5001,
             protocol: 'http',
+            apiVersion: 'v1',
             path: '/api/v1',
-            timeout: 5000
+            timeout: 5000,
+            // v2 specific parameters
+            tenant: 'default_tenant',
+            database: 'default_database'
         };
     }
 
@@ -52,6 +56,38 @@ class ChromaDBViewer {
         return url;
     }
 
+    // API Version-specific endpoint construction
+    getApiEndpoints() {
+        const baseUrl = this.baseUrl;
+
+        if (this.config.apiVersion === 'v2') {
+            const tenant = this.config.tenant || 'default_tenant';
+            const database = this.config.database || 'default_database';
+            return {
+                heartbeat: `${baseUrl}/heartbeat`,
+                collections: `${baseUrl}/tenants/${tenant}/databases/${database}/collections`,
+                collectionCount: (id) => `${baseUrl}/tenants/${tenant}/databases/${database}/collections/${id}/count`,
+                collectionGet: (id) => `${baseUrl}/tenants/${tenant}/databases/${database}/collections/${id}/get`,
+                collectionAdd: (id) => `${baseUrl}/tenants/${tenant}/databases/${database}/collections/${id}/add`,
+                collectionUpdate: (id) => `${baseUrl}/tenants/${tenant}/databases/${database}/collections/${id}/update`,
+                collectionDelete: (id) => `${baseUrl}/tenants/${tenant}/databases/${database}/collections/${id}/delete`,
+                version: 'v2'
+            };
+        } else {
+            // v1 API endpoints
+            return {
+                heartbeat: `${baseUrl}/heartbeat`,
+                collections: `${baseUrl}/collections`,
+                collectionCount: (id) => `${baseUrl}/collections/${id}/count`,
+                collectionGet: (id) => `${baseUrl}/collections/${id}/get`,
+                collectionAdd: (id) => `${baseUrl}/collections/${id}/add`,
+                collectionUpdate: (id) => `${baseUrl}/collections/${id}/update`,
+                collectionDelete: (id) => `${baseUrl}/collections/${id}/delete`,
+                version: 'v1'
+            };
+        }
+    }
+
     // Configuration UI
     showConfigModal() {
         const modal = document.getElementById('config-modal');
@@ -60,11 +96,24 @@ class ChromaDBViewer {
         document.getElementById('db-host').value = this.config.host;
         document.getElementById('db-port').value = this.config.port;
         document.getElementById('db-protocol').value = this.config.protocol;
+        document.getElementById('api-version').value = this.config.apiVersion || 'v1';
         document.getElementById('db-path').value = this.config.path;
         document.getElementById('connection-timeout').value = this.config.timeout;
+        document.getElementById('tenant-name').value = this.config.tenant || 'default_tenant';
+        document.getElementById('database-name').value = this.config.database || 'default_database';
+
+        // Show/hide v2-specific fields
+        this.toggleV2Fields(this.config.apiVersion === 'v2');
 
         modal.classList.add('show');
         modal.style.display = 'flex';
+    }
+
+    toggleV2Fields(showV2) {
+        const v2Fields = document.querySelectorAll('.v2-only');
+        v2Fields.forEach(field => {
+            field.style.display = showV2 ? 'block' : 'none';
+        });
     }
 
     hideConfigModal() {
@@ -146,8 +195,11 @@ class ChromaDBViewer {
             host: document.getElementById('db-host').value.trim() || 'localhost',
             port: parseInt(document.getElementById('db-port').value) || 5001,
             protocol: document.getElementById('db-protocol').value || 'http',
+            apiVersion: document.getElementById('api-version').value || 'v1',
             path: document.getElementById('db-path').value.trim() || '/api/v1',
-            timeout: parseInt(document.getElementById('connection-timeout').value) || 5000
+            timeout: parseInt(document.getElementById('connection-timeout').value) || 5000,
+            tenant: document.getElementById('tenant-name').value.trim() || 'default_tenant',
+            database: document.getElementById('database-name').value.trim() || 'default_database'
         };
     }
 
@@ -300,12 +352,13 @@ class ChromaDBViewer {
     }
 
     async checkConnection() {
-        console.log('Checking connection to:', this.baseUrl);
+        console.log('Checking connection to:', this.baseUrl, `(API ${this.config.apiVersion})`);
         try {
-            const response = await fetch(`${this.baseUrl}/heartbeat`);
+            const endpoints = this.getApiEndpoints();
+            const response = await fetch(endpoints.heartbeat);
             console.log('Connection check response:', response.status, response.statusText);
             if (response.ok) {
-                document.getElementById('connection-status').textContent = 'Connected';
+                document.getElementById('connection-status').textContent = `Connected (API ${this.config.apiVersion})`;
                 document.getElementById('connection-status').className = 'status-online';
                 return true;
             }
@@ -321,7 +374,9 @@ class ChromaDBViewer {
     async loadCollections() {
         try {
             console.log('Loading collections...');
-            const response = await fetch(`${this.baseUrl}/collections`);
+            const endpoints = this.getApiEndpoints();
+            console.log('Collections endpoint:', endpoints.collections);
+            const response = await fetch(endpoints.collections);
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -346,7 +401,8 @@ class ChromaDBViewer {
         for (const collection of collections) {
             try {
                 console.log(`Getting count for collection: ${collection.name} (${collection.id})`);
-                const countResponse = await fetch(`${this.baseUrl}/collections/${collection.id}/count`);
+                const endpoints = this.getApiEndpoints();
+                const countResponse = await fetch(endpoints.collectionCount(collection.id));
 
                 if (countResponse.ok) {
                     const count = await countResponse.text();
@@ -440,7 +496,8 @@ class ChromaDBViewer {
 
             console.log('Request body:', requestBody);
 
-            const response = await fetch(`${this.baseUrl}/collections/${this.currentCollection.id}/get`, {
+            const endpoints = this.getApiEndpoints();
+            const response = await fetch(endpoints.collectionGet(this.currentCollection.id), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -471,7 +528,8 @@ class ChromaDBViewer {
         try {
             console.log('Getting collection count for ID:', this.currentCollection.id);
 
-            const response = await fetch(`${this.baseUrl}/collections/${this.currentCollection.id}/count`);
+            const endpoints = this.getApiEndpoints();
+            const response = await fetch(endpoints.collectionCount(this.currentCollection.id));
 
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -719,6 +777,23 @@ class ChromaDBViewer {
             e.preventDefault();
             console.log('Form submitted');
             await this.saveAndConnect();
+        });
+
+        // API version change handler
+        document.getElementById('api-version').addEventListener('change', (e) => {
+            const apiVersion = e.target.value;
+            const pathInput = document.getElementById('db-path');
+            const currentPath = pathInput.value;
+
+            // Auto-update path if it's a standard API path
+            if (currentPath === '/api/v1' || currentPath === '/api/v2' || !currentPath) {
+                pathInput.value = `/api/${apiVersion}`;
+            }
+
+            // Show/hide v2-specific fields
+            this.toggleV2Fields(apiVersion === 'v2');
+
+            console.log(`API version changed to ${apiVersion}, path updated to: ${pathInput.value}`);
         });
 
         // ESC key to close modal
