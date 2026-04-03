@@ -18,7 +18,7 @@ A modern, responsive Single Page Application (SPA) for exploring and visualizing
 - **CORS Proxy Support** - Connect to remote Chroma instances without server modifications
 
 ### 🛠 Technical Features
-- **No Dependencies** - Pure HTML, CSS, and JavaScript
+- **No npm / build step** - Vanilla HTML, CSS, and JavaScript UI; optional `chromadb` Python package for `/api/explorer/*`
 - **Modern UI** - Clean, professional interface with smooth animations
 - **Configurable Connections** - Support for local and remote Chroma servers
 - **Multiple API Formats** - Automatically detects and adapts to different Chroma versions
@@ -30,7 +30,9 @@ A modern, responsive Single Page Application (SPA) for exploring and visualizing
 ### Prerequisites
 - A running Chroma database instance
 - Modern web browser (Chrome 80+, Firefox 75+, Safari 13+, Edge 80+)
-- Python 3.6+ (for running the included servers)
+- Python 3.9+ (for `serve.py`; 3.6+ may work for static-only)
+- Optional but recommended: `pip install -r requirements.txt` so `serve.py` can proxy data through the official **chromadb** Python client (`/api/explorer/*`) instead of calling Chroma REST only from the browser
+- For a **full tenant list** when Chroma uses on-disk storage on the same machine as `serve.py`, set **Chroma data path** in settings to the persist directory (or `chroma.sqlite3`). The backend reads the `tenants` / `databases` tables directly. Purely remote servers have no public “list tenants” API—use the tenant field to type a name, or add hints. Operational **kubectl + sqlite3** example for listing tenants in-cluster: see `docs/chroma-sysdb-tenants-note.sql`.
 
 ### Installation
 
@@ -40,14 +42,19 @@ A modern, responsive Single Page Application (SPA) for exploring and visualizing
    cd chromadb_viewer
    ```
 
-2. **For local Chroma databases:**
+2. **Install the Python client (recommended):**
    ```bash
-   # Start the local HTTP server
+   pip install -r requirements.txt
+   ```
+   When `chromadb` is installed, `serve.py` serves both the static UI and `/api/explorer/*`, which uses `HttpClient` + `AdminClient` to talk to the Chroma host you configure in the UI (better parity with supported APIs than raw browser REST alone).
+
+3. **For local Chroma databases:**
+   ```bash
    python3 serve.py
-   # Open browser to http://localhost:8080
+   # Open http://localhost:5000 (see serve.py PORT)
    ```
 
-3. **For remote Chroma databases:**
+4. **For remote Chroma databases:**
    ```bash
    # Start the CORS proxy server
    python3 proxy-server.py --target-host YOUR_HOST --target-port YOUR_PORT --proxy-port 5001
@@ -63,7 +70,7 @@ A modern, responsive Single Page Application (SPA) for exploring and visualizing
    ```bash
    python3 serve.py
    ```
-3. **Open your browser** to `http://localhost:8080`
+3. **Open your browser** to `http://localhost:5000` (or the port printed by `serve.py`)
 4. **Configure connection** (click ⚙️ gear icon):
    - Host: `localhost`
    - Port: `8000` (or your Chroma port)
